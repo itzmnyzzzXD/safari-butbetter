@@ -1,0 +1,79 @@
+name: Build unsigned iOS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: safari-butbetter-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ipa:
+    name: Build Safari But Better
+    runs-on: macos-15
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          xcode-select -p
+          xcodebuild -version
+
+      - name: Build for iOS device (signing disabled)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SafariButBetter.xcodeproj \
+            -scheme SafariButBetter \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/SafariButBetter.app"
+          test -d "$APP_PATH" || {
+            echo "Expected app bundle was not produced: $APP_PATH" >&2
+            exit 1
+          }
+
+          IPA_ROOT="$RUNNER_TEMP/ipa-root"
+          mkdir -p "$IPA_ROOT/Payload"
+          ditto "$APP_PATH" "$IPA_ROOT/Payload/SafariButBetter.app"
+          (cd "$IPA_ROOT" && /usr/bin/zip -qry "$GITHUB_WORKSPACE/SafariButBetter-unsigned.ipa" Payload)
+          /usr/bin/unzip -tq "$GITHUB_WORKSPACE/SafariButBetter-unsigned.ipa"
+          ls -lh "$GITHUB_WORKSPACE/SafariButBetter-unsigned.ipa"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SafariButBetter-unsigned-IPA
+          path: SafariButBetter-unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Write build summary
+        if: always()
+        run: |
+          {
+            echo "## Safari But Better build"
+            echo "- Scheme: `SafariButBetter`"
+            echo "- Target: generic iOS device"
+            echo "- Code signing: disabled (unsigned IPA)"
+            echo "- Artifact: `SafariButBetter-unsigned.ipa`"
+            echo "- Commit: `${GITHUB_SHA}`"
+          } >> "$GITHUB_STEP_SUMMARY"
