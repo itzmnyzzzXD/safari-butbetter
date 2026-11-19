@@ -97,6 +97,14 @@ struct BrowserView: View {
 
             Spacer()
 
+            Button { activeSheet = .bookmarks } label: {
+                Image(systemName: "bookmark")
+                    .font(.system(size: 17, weight: .medium))
+                    .frame(width: 38, height: 38)
+                    .background(.thinMaterial, in: Circle())
+            }
+            .accessibilityLabel("Saved bookmarks")
+
             Button { activeSheet = .history } label: {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 17, weight: .medium))
@@ -172,13 +180,14 @@ struct BrowserView: View {
 
             Spacer(minLength: 4)
 
-            Button { activeSheet = .bookmarks } label: {
+            Button { browser.toggleBookmarkForCurrentPage() } label: {
                 Image(systemName: browser.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(browser.isCurrentPageBookmarked ? Color.accentColor : foreground)
                     .frame(width: 44, height: 42)
             }
-            .accessibilityLabel("Bookmarks")
+            .disabled(browser.currentURL == nil)
+            .accessibilityLabel(browser.isCurrentPageBookmarked ? "Remove bookmark" : "Add bookmark")
 
             if let url = browser.currentURL {
                 ShareLink(item: url) {
